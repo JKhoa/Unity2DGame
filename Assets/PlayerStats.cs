@@ -327,12 +327,18 @@ public class PlayerStats : MonoBehaviour
         SceneManager.LoadScene(currentScene.name);
     }
 
-    // Thêm hàm để kiểm tra va chạm với lava
     private void OnTriggerEnter2D(Collider2D other)
     {
+        // Kiểm tra va chạm với Lava
         if (other.CompareTag("Lava"))
         {
             Die();
+        }
+        // Kiểm tra va chạm với Enemy
+        else if (other.CompareTag("Enemy"))
+        {
+            // Nhận exp khi tiêu diệt enemy
+            GainExp(20f);
         }
     }
 
@@ -463,16 +469,6 @@ public class PlayerStats : MonoBehaviour
         if (expBarUI != null)
         {
             expBarUI.UpdateExpUI(currentExp, expToNextLevel, currentLevel);
-        }
-    }
-
-    // Thêm vào OnTriggerEnter2D
-    private void OnTriggerEnter2D(Collider2D other)
-    {
-        if (other.CompareTag("Enemy"))
-        {
-            // Nhận exp khi tiêu diệt enemy
-            GainExp(20f); // Có thể điều chỉnh số exp nhận được
         }
     }
 }
