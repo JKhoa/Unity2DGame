@@ -91,11 +91,19 @@ public class Enemy : MonoBehaviour
         Debug.Log($"[{gameObject.name}] Died!");
         
         // Thêm exp cho player
-        PlayerLevel playerLevel = Object.FindFirstObjectByType<PlayerLevel>();
-        if (playerLevel != null)
+        PlayerStats playerStats = Object.FindFirstObjectByType<PlayerStats>();
+        if (playerStats != null)
         {
-            playerLevel.GainExp(expValue);
+            playerStats.GainExp(expValue);
+            Debug.Log($"[{gameObject.name}] Giving {expValue} exp to player");
         }
+        else
+        {
+            Debug.LogError($"[{gameObject.name}] PlayerStats not found when trying to give exp!");
+        }
+
+        // Hiển thị hiệu ứng exp
+        ShowExpGainEffect();
 
         // Xóa health bar
         if (healthBar != null)

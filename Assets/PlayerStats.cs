@@ -19,8 +19,9 @@ public class PlayerStats : MonoBehaviour
     public int currentLevel = 1;
     public float currentExp = 0f;
     public float expToNextLevel = 100f;
-    public float expMultiplier = 1.5f; // Hệ số tăng exp cần thiết mỗi level
-    public ExpBarUI expBarUI;
+    public float expMultiplier = 1.5f;
+    [SerializeField] private GameObject expBarPrefab;
+    private ExpBarUI expBarUI;
 
     [Header("Multipliers")]
     public float damageMultiplier = 1f;
@@ -133,17 +134,7 @@ public class PlayerStats : MonoBehaviour
         InitializeHealthBar();
 
         // Khởi tạo ExpBarUI
-        if (expBarUI == null)
-        {
-            expBarUI = FindObjectOfType<ExpBarUI>();
-            if (expBarUI == null)
-            {
-                Debug.LogError("[PlayerStats] Không tìm thấy ExpBarUI!");
-            }
-        }
-        
-        // Cập nhật UI exp ban đầu
-        UpdateExpUI();
+        InitializeExpBar();
         
         Debug.Log($"[PlayerStats] Bắt đầu với máu: {currentHealth}/{maxHealth}, Level: {currentLevel}, Exp: {currentExp}/{expToNextLevel}");
     }
@@ -178,6 +169,36 @@ public class PlayerStats : MonoBehaviour
         }
 
         UpdateHealthUI();
+    }
+
+    private void InitializeExpBar()
+    {
+        // Nếu chưa có ExpBarUI, tìm trong scene
+        if (expBarUI == null)
+        {
+            expBarUI = FindObjectOfType<ExpBarUI>();
+        }
+
+        // Nếu không tìm thấy và có prefab, tạo mới
+        if (expBarUI == null && expBarPrefab != null)
+        {
+            GameObject expBarObj = Instantiate(expBarPrefab, mainCanvas.transform);
+            expBarUI = expBarObj.GetComponent<ExpBarUI>();
+            
+            if (expBarUI == null)
+            {
+                Debug.LogError("[PlayerStats] Không tìm thấy component ExpBarUI trong prefab!");
+                return;
+            }
+        }
+        else if (expBarPrefab == null)
+        {
+            Debug.LogError("[PlayerStats] Không có ExpBar prefab được gán!");
+            return;
+        }
+
+        // Cập nhật UI ban đầu
+        UpdateExpUI();
     }
 
     private void LateUpdate()
@@ -432,6 +453,10 @@ public class PlayerStats : MonoBehaviour
         {
             expBarUI.ShowExpGain(expGained);
         }
+        else
+        {
+            Debug.LogWarning("[PlayerStats] ExpBarUI là null khi nhận exp!");
+        }
 
         // Kiểm tra level up
         while (currentExp >= expToNextLevel)
@@ -469,6 +494,11 @@ public class PlayerStats : MonoBehaviour
         if (expBarUI != null)
         {
             expBarUI.UpdateExpUI(currentExp, expToNextLevel, currentLevel);
+        }
+        else
+        {
+            Debug.LogWarning("[PlayerStats] ExpBarUI là null khi cập nhật UI!");
+            InitializeExpBar(); // Thử khởi tạo lại nếu bị null
         }
     }
 }
