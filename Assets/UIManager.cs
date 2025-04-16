@@ -20,6 +20,7 @@ public class UIManager : MonoBehaviour
 
     [Header("Experience UI")]
     public ExpBarUI expBarUI;
+    public GameObject expBarPrefab;
 
     [Header("Weapon UI")]
     public Image weaponIcon;
@@ -51,17 +52,24 @@ public class UIManager : MonoBehaviour
         SetupUI();
     }
 
-    private void SetupUI()
+    private void OnEnable()
     {
-        // Lấy camera
-        mainCamera = Camera.main;
-        if (mainCamera == null)
-        {
-            Debug.LogError("Không tìm thấy Main Camera!");
-            return;
-        }
+        PlayerStats.OnPlayerRespawn += HandlePlayerRespawn;
+    }
 
-        // Tìm player
+    private void OnDisable()
+    {
+        PlayerStats.OnPlayerRespawn -= HandlePlayerRespawn;
+    }
+
+    public void HandlePlayerRespawn()
+    {
+        FindPlayer();
+        SetupUI();
+    }
+
+    private void FindPlayer()
+    {
         GameObject player = GameObject.FindGameObjectWithTag("Player");
         if (player != null)
         {
@@ -69,63 +77,92 @@ public class UIManager : MonoBehaviour
         }
         else
         {
-            Debug.LogError("Không tìm thấy Player!");
+            Debug.LogWarning("Không tìm thấy Player!");
+        }
+    }
+
+    private void SetupUI()
+    {
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+        }
+        
+        if (mainCamera == null)
+        {
+            Debug.LogError("Không tìm thấy Main Camera!");
             return;
         }
 
-        // Thiết lập Canvas
+        if (playerTransform == null)
+        {
+            FindPlayer();
+        }
+
         if (mainCanvas != null)
         {
             mainCanvas.renderMode = RenderMode.WorldSpace;
             mainCanvas.worldCamera = mainCamera;
         }
-
-        // Đảm bảo có EventSystem
-        eventSystem = FindObjectOfType<EventSystem>();
-        if (eventSystem == null)
+        else
         {
-            GameObject eventSystemObj = new GameObject("EventSystem");
-            eventSystem = eventSystemObj.AddComponent<EventSystem>();
-            eventSystemObj.AddComponent<StandaloneInputModule>();
-        }
-
-        // Kiểm tra ExpBarUI
-        if (expBarUI == null)
-        {
-            Debug.LogError("ExpBarUI reference is missing in UIManager!");
+            Debug.LogError("Main Canvas chưa được gán!");
             return;
         }
 
-        // Thiết lập Health Bar
-        SetupHealthBar();
+        if (eventSystem == null)
+        {
+            eventSystem = FindObjectOfType<EventSystem>();
+            if (eventSystem == null)
+            {
+                GameObject eventSystemObj = new GameObject("EventSystem");
+                eventSystem = eventSystemObj.AddComponent<EventSystem>();
+                eventSystemObj.AddComponent<StandaloneInputModule>();
+            }
+        }
 
-        // Thiết lập Exp Bar
+        SetupHealthBar();
         SetupExpBar();
     }
 
     private void SetupHealthBar()
     {
-        if (healthBar == null && healthBarPrefab != null)
+        if (healthBar == null || healthBar.gameObject == null)
         {
-            GameObject healthBarObj = Instantiate(healthBarPrefab, mainCanvas.transform);
-            healthBar = healthBarObj.GetComponent<Slider>();
-            healthText = healthBarObj.GetComponentInChildren<TextMeshProUGUI>();
-
-            if (healthBar != null)
+            if (healthBarPrefab != null)
             {
-                healthBar.maxValue = 100;
-                healthBar.value = 100;
+                GameObject healthBarObj = Instantiate(healthBarPrefab, mainCanvas.transform);
+                healthBar = healthBarObj.GetComponent<Slider>();
+                healthText = healthBarObj.GetComponentInChildren<TextMeshProUGUI>();
+
+                if (healthBar != null)
+                {
+                    healthBar.maxValue = 100;
+                    healthBar.value = 100;
+                }
             }
-        }
-        else if (healthBarPrefab == null)
-        {
-            Debug.LogError("Health Bar Prefab chưa được gán trong UIManager!");
+            else
+            {
+                Debug.LogError("Health Bar Prefab chưa được gán trong UIManager!");
+            }
         }
     }
 
     private void SetupExpBar()
     {
-        if (expBarUI != null)
+        if (expBarUI == null || expBarUI.gameObject == null)
+        {
+            if (expBarPrefab != null)
+            {
+                GameObject expBarObj = Instantiate(expBarPrefab, mainCanvas.transform);
+                expBarUI = expBarObj.GetComponent<ExpBarUI>();
+            }
+            else
+            {
+                Debug.LogError("Exp Bar Prefab chưa được gán trong UIManager!");
+            }
+        }
+        else
         {
             expBarUI.transform.SetParent(mainCanvas.transform, false);
         }
@@ -133,20 +170,36 @@ public class UIManager : MonoBehaviour
 
     private void LateUpdate()
     {
-        if (playerTransform == null || mainCamera == null) return;
+        if (playerTransform == null)
+        {
+            FindPlayer();
+            return;
+        }
 
-        // Cập nhật vị trí Health Bar
-        if (healthBar != null)
+        if (mainCamera == null)
+        {
+            mainCamera = Camera.main;
+            return;
+        }
+
+        if (healthBar != null && healthBar.gameObject != null)
         {
             healthBar.transform.position = playerTransform.position + healthBarOffset;
             healthBar.transform.forward = mainCamera.transform.forward;
         }
+        else
+        {
+            SetupHealthBar();
+        }
 
-        // Cập nhật vị trí Exp Bar
-        if (expBarUI != null)
+        if (expBarUI != null && expBarUI.gameObject != null)
         {
             expBarUI.transform.position = playerTransform.position + expBarOffset;
             expBarUI.transform.forward = mainCamera.transform.forward;
+        }
+        else
+        {
+            SetupExpBar();
         }
     }
 

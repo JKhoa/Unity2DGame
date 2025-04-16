@@ -4,10 +4,14 @@ using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
 using TMPro;
+using System;
 
 public class PlayerStats : MonoBehaviour
 {
     public static PlayerStats Instance { get; private set; }
+
+    // Thêm event cho player respawn
+    public static event Action OnPlayerRespawn;
 
     [Header("Base Stats")]
     public float maxHealth = 100f;
@@ -79,6 +83,9 @@ public class PlayerStats : MonoBehaviour
         if (GetComponent<Rigidbody2D>() != null)
             GetComponent<Rigidbody2D>().simulated = true;
         
+        // Gọi event player respawn
+        OnPlayerRespawn?.Invoke();
+        
         // Tìm Canvas trong scene mới và đợi 1 frame để đảm bảo tất cả các object đã được tải
         StartCoroutine(InitializeHealthBarAfterDelay());
     }
@@ -88,7 +95,7 @@ public class PlayerStats : MonoBehaviour
         yield return null; // Đợi 1 frame
 
         // Tìm Canvas
-        mainCanvas = Object.FindFirstObjectByType<Canvas>();
+        mainCanvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
         
         // Khởi tạo lại thanh máu
         if (mainCanvas != null)
@@ -123,7 +130,7 @@ public class PlayerStats : MonoBehaviour
         onHealthChanged?.Invoke(currentHealth);
         
         // Tìm Canvas chính
-        mainCanvas = Object.FindFirstObjectByType<Canvas>();
+        mainCanvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
         if (mainCanvas == null)
         {
             Debug.LogError("[PlayerStats] Không tìm thấy Canvas trong scene!");
@@ -332,20 +339,31 @@ public class PlayerStats : MonoBehaviour
 
     private void ResetGame()
     {
-        // Đảm bảo hủy thanh máu cũ trước khi reload scene
-        if (healthBar != null)
+        if (isDead)
         {
-            Destroy(healthBar.gameObject);
-            healthBar = null;
+            isDead = false;
+            currentHealth = maxHealth;
+            
+            // Bật lại các component
+            if (GetComponent<PlayerShooting>() != null)
+                GetComponent<PlayerShooting>().enabled = true;
+            
+            if (GetComponent<Rigidbody2D>() != null)
+                GetComponent<Rigidbody2D>().simulated = true;
+
+            // Gọi event player respawn
+            OnPlayerRespawn?.Invoke();
+            
+            // Khởi tạo lại UI
+            InitializeHealthBar();
+            InitializeExpBar();
+            
+            // Cập nhật UI
+            UpdateHealthUI();
+            UpdateExpUI();
+            
+            Debug.Log("[PlayerStats] Player đã hồi sinh với đầy máu");
         }
-
-        // Reset các giá trị
-        isDead = false;
-        currentHealth = maxHealth;
-
-        // Reload scene hiện tại
-        Scene currentScene = SceneManager.GetActiveScene();
-        SceneManager.LoadScene(currentScene.name);
     }
 
     private void OnTriggerEnter2D(Collider2D other)
