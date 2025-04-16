@@ -37,7 +37,6 @@ public class PlayerLevel : MonoBehaviour
     private void Start()
     {
         upgradeManager = Object.FindFirstObjectByType<UpgradeManager>();
-        UpdateUI();
     }
 
     public void GainExp(float amount)
@@ -63,16 +62,6 @@ public class PlayerLevel : MonoBehaviour
         if (upgradeManager != null)
         {
             upgradeManager.ShowUpgradeOptions();
-        }
-        UpdateUI();
-    }
-
-    void UpdateUI()
-    {
-        UIManager uiManager = Object.FindFirstObjectByType<UIManager>();
-        if (uiManager != null)
-        {
-            uiManager.UpdateExpUI(currentExp, expToNextLevel, level);
         }
     }
 } 

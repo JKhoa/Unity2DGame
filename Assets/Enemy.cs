@@ -95,9 +95,6 @@ public class Enemy : MonoBehaviour
         if (playerLevel != null)
         {
             playerLevel.GainExp(expValue);
-            
-            // Hiển thị animation EXP
-            ShowExpGainEffect();
         }
 
         // Xóa health bar

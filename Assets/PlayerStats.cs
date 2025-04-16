@@ -3,6 +3,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using UnityEngine.SceneManagement;
 using System.Collections;
+using TMPro;
 
 public class PlayerStats : MonoBehaviour
 {
@@ -10,9 +11,16 @@ public class PlayerStats : MonoBehaviour
 
     [Header("Base Stats")]
     public float maxHealth = 100f;
-    public float currentHealth;
+    private float currentHealth;
     public float moveSpeed = 5f;
     public float damage = 10f;
+
+    [Header("Level System")]
+    public int currentLevel = 1;
+    public float currentExp = 0f;
+    public float expToNextLevel = 100f;
+    public float expMultiplier = 1.5f; // Hệ số tăng exp cần thiết mỗi level
+    public ExpBarUI expBarUI;
 
     [Header("Multipliers")]
     public float damageMultiplier = 1f;
@@ -24,10 +32,11 @@ public class PlayerStats : MonoBehaviour
     public float attackRange = 5f;
 
     [Header("References")]
-    public GameObject healthBarPrefab;
+    [SerializeField] private GameObject healthBarPrefab;
     private HealthBar healthBar;
     private Canvas mainCanvas;
-    public Slider healthSlider;
+    [SerializeField] private Slider healthSlider;
+    [SerializeField] private TextMeshProUGUI healthText;
     [Header("Events")]
     public UnityEvent onDeath;
     public UnityEvent<float> onHealthChanged;
@@ -97,9 +106,8 @@ public class PlayerStats : MonoBehaviour
         SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
-    void Start()
+    private void Start()
     {
-        // Luôn đặt máu hiện tại bằng máu tối đa khi bắt đầu
         currentHealth = maxHealth;
         isDead = false;
         
@@ -123,54 +131,61 @@ public class PlayerStats : MonoBehaviour
 
         // Khởi tạo thanh máu
         InitializeHealthBar();
+
+        // Khởi tạo ExpBarUI
+        if (expBarUI == null)
+        {
+            expBarUI = FindObjectOfType<ExpBarUI>();
+            if (expBarUI == null)
+            {
+                Debug.LogError("[PlayerStats] Không tìm thấy ExpBarUI!");
+            }
+        }
         
-        Debug.Log($"[PlayerStats] Bắt đầu với máu: {currentHealth}/{maxHealth}");
+        // Cập nhật UI exp ban đầu
+        UpdateExpUI();
+        
+        Debug.Log($"[PlayerStats] Bắt đầu với máu: {currentHealth}/{maxHealth}, Level: {currentLevel}, Exp: {currentExp}/{expToNextLevel}");
     }
     
     private void InitializeHealthBar()
     {
-        // Xóa thanh máu cũ nếu có để tránh trùng lặp
-        if (healthBar != null)
+        // Kiểm tra nếu đã có reference đến healthSlider
+        if (healthSlider == null)
         {
-            Destroy(healthBar.gameObject);
-            healthBar = null;
-        }
-        
-        // Kiểm tra các tham chiếu cần thiết
-        if (healthBarPrefab == null)
-        {
-            Debug.LogError("[PlayerStats] HealthBarPrefab là null! Không thể tạo thanh máu.");
-            return;
-        }
-        
-        if (mainCanvas == null)
-        {
-            Debug.LogError("[PlayerStats] Main Canvas là null! Không thể tạo thanh máu.");
-            return;
-        }
-        
-        // Tạo thanh máu mới
-        GameObject healthBarObj = Instantiate(healthBarPrefab, mainCanvas.transform);
-        healthBar = healthBarObj.GetComponent<HealthBar>();
-        
-        if (healthBar != null)
-        {
-            // Thiết lập thanh máu
-            healthBar.SetTarget(transform);
-            healthBar.UpdateHealth(currentHealth, maxHealth);
-            
-            // Cập nhật slider UI nếu có
-            if (healthSlider != null)
+            // Nếu có prefab thì tạo mới
+            if (healthBarPrefab != null)
             {
-                healthSlider.maxValue = maxHealth;
-                healthSlider.value = currentHealth;
+                GameObject healthBarObj = Instantiate(healthBarPrefab, transform);
+                healthBarObj.transform.localPosition = new Vector3(0, 1.5f, 0);
+                healthBarObj.transform.localScale = new Vector3(0.01f, 0.01f, 1);
+                
+                healthSlider = healthBarObj.GetComponent<Slider>();
+                healthText = healthBarObj.GetComponentInChildren<TextMeshProUGUI>();
             }
-            
-            Debug.Log($"[PlayerStats] Đã khởi tạo thanh máu. Máu: {currentHealth}/{maxHealth}");
+            else
+            {
+                Debug.LogError("[PlayerStats] HealthBarPrefab là null! Không thể tạo thanh máu.");
+                return;
+            }
         }
-        else
+
+        // Thiết lập giá trị ban đầu
+        if (healthSlider != null)
         {
-            Debug.LogError("[PlayerStats] Không tìm thấy component HealthBar trên prefab!");
+            healthSlider.maxValue = maxHealth;
+            healthSlider.value = currentHealth;
+        }
+
+        UpdateHealthUI();
+    }
+
+    private void LateUpdate()
+    {
+        if (healthSlider != null)
+        {
+            // Làm cho health bar luôn quay về phía camera
+            healthSlider.transform.forward = Camera.main.transform.forward;
         }
     }
 
@@ -389,5 +404,75 @@ public class PlayerStats : MonoBehaviour
     public void IncreaseAttackRange(float amount)
     {
         attackRange += amount;
+    }
+
+    private void UpdateHealthUI()
+    {
+        if (healthText != null)
+        {
+            healthText.text = $"{Mathf.CeilToInt(currentHealth)}/{Mathf.CeilToInt(maxHealth)}";
+        }
+    }
+
+    public void GainExp(float amount)
+    {
+        if (isDead) return;
+
+        float expGained = amount;
+        currentExp += expGained;
+
+        // Hiển thị exp gain
+        if (expBarUI != null)
+        {
+            expBarUI.ShowExpGain(expGained);
+        }
+
+        // Kiểm tra level up
+        while (currentExp >= expToNextLevel)
+        {
+            currentExp -= expToNextLevel;
+            LevelUp();
+            expToNextLevel *= expMultiplier;
+        }
+
+        UpdateExpUI();
+        Debug.Log($"[PlayerStats] Nhận {expGained} exp. Hiện tại: {currentExp}/{expToNextLevel}");
+    }
+
+    private void LevelUp()
+    {
+        currentLevel++;
+        
+        // Tăng chỉ số khi lên level
+        maxHealth += 10f;
+        damage += 5f;
+        
+        // Cập nhật máu hiện tại
+        float healthPercent = currentHealth / maxHealth;
+        maxHealth *= 1.1f; // Tăng 10% máu tối đa
+        currentHealth = maxHealth * healthPercent;
+        
+        UpdateHealthUI();
+        UpdateExpUI();
+        
+        Debug.Log($"[PlayerStats] Lên level {currentLevel}! Máu tối đa mới: {maxHealth}");
+    }
+
+    private void UpdateExpUI()
+    {
+        if (expBarUI != null)
+        {
+            expBarUI.UpdateExpUI(currentExp, expToNextLevel, currentLevel);
+        }
+    }
+
+    // Thêm vào OnTriggerEnter2D
+    private void OnTriggerEnter2D(Collider2D other)
+    {
+        if (other.CompareTag("Enemy"))
+        {
+            // Nhận exp khi tiêu diệt enemy
+            GainExp(20f); // Có thể điều chỉnh số exp nhận được
+        }
     }
 }

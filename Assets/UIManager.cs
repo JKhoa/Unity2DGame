@@ -1,38 +1,25 @@
 using UnityEngine;
 using TMPro;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 public class UIManager : MonoBehaviour
 {
-    private static UIManager instance;
-    public static UIManager Instance
-    {
-        get
-        {
-            if (instance == null)
-            {
-                instance = FindAnyObjectByType<UIManager>();
-                if (instance == null)
-                {
-                    GameObject go = new GameObject("UI Manager");
-                    instance = go.AddComponent<UIManager>();
-                }
-            }
-            return instance;
-        }
-    }
+    public static UIManager Instance { get; private set; }
 
-    private Canvas mainCanvas;
-    private CanvasScaler canvasScaler;
-
+    [Header("Canvas Settings")]
+    public Canvas mainCanvas;
+    private Camera mainCamera;
+    public Vector3 healthBarOffset = new Vector3(0, 1.5f, 0);
+    public Vector3 expBarOffset = new Vector3(0, 1.2f, 0);
+    
     [Header("Health UI")]
+    public GameObject healthBarPrefab;
     public Slider healthBar;
     public TextMeshProUGUI healthText;
 
     [Header("Experience UI")]
-    public Slider expBar;
-    public TextMeshProUGUI levelText;
-    public TextMeshProUGUI expText;
+    public ExpBarUI expBarUI;
 
     [Header("Weapon UI")]
     public Image weaponIcon;
@@ -43,13 +30,15 @@ public class UIManager : MonoBehaviour
     public TextMeshProUGUI enemyCountText;
     public TextMeshProUGUI waveText;
 
-    void Awake()
+    private EventSystem eventSystem;
+    private Transform playerTransform;
+
+    private void Awake()
     {
-        if (instance == null)
+        if (Instance == null)
         {
-            instance = this;
+            Instance = this;
             DontDestroyOnLoad(gameObject);
-            SetupUI();
         }
         else
         {
@@ -57,113 +46,107 @@ public class UIManager : MonoBehaviour
         }
     }
 
-    void SetupUI()
+    private void Start()
     {
-        // Tìm hoặc tạo main canvas
-        mainCanvas = FindAnyObjectByType<Canvas>();
-        if (mainCanvas == null)
+        SetupUI();
+    }
+
+    private void SetupUI()
+    {
+        // Lấy camera
+        mainCamera = Camera.main;
+        if (mainCamera == null)
         {
-            GameObject canvasObj = new GameObject("Main Canvas");
-            mainCanvas = canvasObj.AddComponent<Canvas>();
-            canvasObj.AddComponent<CanvasScaler>();
-            canvasObj.AddComponent<GraphicRaycaster>();
+            Debug.LogError("Không tìm thấy Main Camera!");
+            return;
+        }
+
+        // Tìm player
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+        {
+            playerTransform = player.transform;
+        }
+        else
+        {
+            Debug.LogError("Không tìm thấy Player!");
+            return;
         }
 
         // Thiết lập Canvas
-        mainCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        mainCanvas.sortingOrder = 100; // Đảm bảo UI luôn hiển thị trên cùng
-
-        // Thiết lập CanvasScaler
-        canvasScaler = mainCanvas.GetComponent<CanvasScaler>();
-        if (canvasScaler != null)
+        if (mainCanvas != null)
         {
-            canvasScaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
-            canvasScaler.referenceResolution = new Vector2(1920, 1080);
-            canvasScaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-            canvasScaler.matchWidthOrHeight = 0.5f; // 0.5 để cân bằng giữa width và height
+            mainCanvas.renderMode = RenderMode.WorldSpace;
+            mainCanvas.worldCamera = mainCamera;
         }
 
-        // Tạo EventSystem nếu chưa có
-        if (FindAnyObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+        // Đảm bảo có EventSystem
+        eventSystem = FindObjectOfType<EventSystem>();
+        if (eventSystem == null)
         {
-            GameObject eventSystem = new GameObject("EventSystem");
-            eventSystem.AddComponent<UnityEngine.EventSystems.EventSystem>();
-            eventSystem.AddComponent<UnityEngine.EventSystems.StandaloneInputModule>();
+            GameObject eventSystemObj = new GameObject("EventSystem");
+            eventSystem = eventSystemObj.AddComponent<EventSystem>();
+            eventSystemObj.AddComponent<StandaloneInputModule>();
         }
+
+        // Kiểm tra ExpBarUI
+        if (expBarUI == null)
+        {
+            Debug.LogError("ExpBarUI reference is missing in UIManager!");
+            return;
+        }
+
+        // Thiết lập Health Bar
+        SetupHealthBar();
+
+        // Thiết lập Exp Bar
+        SetupExpBar();
     }
 
-    public void OptimizeUIElement(GameObject uiElement)
+    private void SetupHealthBar()
     {
-        if (uiElement == null) return;
-
-        // Tối ưu hóa Image component
-        Image image = uiElement.GetComponent<Image>();
-        if (image != null)
+        if (healthBar == null && healthBarPrefab != null)
         {
-            // Đảm bảo pixel perfect
-            image.preserveAspect = true;
-            
-            // Tối ưu material
-            if (image.material != null)
+            GameObject healthBarObj = Instantiate(healthBarPrefab, mainCanvas.transform);
+            healthBar = healthBarObj.GetComponent<Slider>();
+            healthText = healthBarObj.GetComponentInChildren<TextMeshProUGUI>();
+
+            if (healthBar != null)
             {
-                image.material.SetInt("_PixelSnap", 1);
+                healthBar.maxValue = 100;
+                healthBar.value = 100;
             }
         }
-
-        // Tối ưu hóa Text component
-        Text text = uiElement.GetComponent<Text>();
-        if (text != null)
+        else if (healthBarPrefab == null)
         {
-            // Đảm bảo text sắc nét
-            text.fontSize = Mathf.RoundToInt(text.fontSize);
-            text.alignByGeometry = true;
-        }
-
-        // Đặt RectTransform
-        RectTransform rect = uiElement.GetComponent<RectTransform>();
-        if (rect != null)
-        {
-            // Đảm bảo vị trí pixel perfect
-            Vector3 pos = rect.localPosition;
-            rect.localPosition = new Vector3(
-                Mathf.Round(pos.x),
-                Mathf.Round(pos.y),
-                pos.z
-            );
+            Debug.LogError("Health Bar Prefab chưa được gán trong UIManager!");
         }
     }
 
-    public void SetupHealthBar(GameObject healthBar)
+    private void SetupExpBar()
     {
-        if (healthBar == null) return;
-
-        // Thiết lập RectTransform
-        RectTransform rect = healthBar.GetComponent<RectTransform>();
-        if (rect != null)
+        if (expBarUI != null)
         {
-            rect.anchorMin = new Vector2(0.5f, 1f);
-            rect.anchorMax = new Vector2(0.5f, 1f);
-            rect.pivot = new Vector2(0.5f, 1f);
-            rect.sizeDelta = new Vector2(200, 20); // Kích thước health bar
+            expBarUI.transform.SetParent(mainCanvas.transform, false);
+        }
+    }
+
+    private void LateUpdate()
+    {
+        if (playerTransform == null || mainCamera == null) return;
+
+        // Cập nhật vị trí Health Bar
+        if (healthBar != null)
+        {
+            healthBar.transform.position = playerTransform.position + healthBarOffset;
+            healthBar.transform.forward = mainCamera.transform.forward;
         }
 
-        // Tối ưu hóa các component UI
-        OptimizeUIElement(healthBar);
-
-        // Thiết lập Slider nếu có
-        Slider slider = healthBar.GetComponent<Slider>();
-        if (slider != null)
+        // Cập nhật vị trí Exp Bar
+        if (expBarUI != null)
         {
-            // Đảm bảo smooth filling
-            slider.wholeNumbers = false;
-            
-            // Tối ưu các image trong slider
-            if (slider.fillRect != null)
-                OptimizeUIElement(slider.fillRect.gameObject);
-            if (slider.handleRect != null)
-                OptimizeUIElement(slider.handleRect.gameObject);
-            if (slider.targetGraphic != null)
-                OptimizeUIElement(slider.targetGraphic.gameObject);
+            expBarUI.transform.position = playerTransform.position + expBarOffset;
+            expBarUI.transform.forward = mainCamera.transform.forward;
         }
     }
 
@@ -177,26 +160,23 @@ public class UIManager : MonoBehaviour
 
         if (healthText != null)
         {
-            healthText.text = $"{Mathf.CeilToInt(currentHealth)} / {Mathf.CeilToInt(maxHealth)}";
+            healthText.text = $"{Mathf.CeilToInt(currentHealth)}/{Mathf.CeilToInt(maxHealth)}";
         }
     }
 
     public void UpdateExpUI(float currentExp, float expToNextLevel, int currentLevel)
     {
-        if (expBar != null)
+        if (expBarUI != null)
         {
-            expBar.maxValue = expToNextLevel;
-            expBar.value = currentExp;
+            expBarUI.UpdateExpUI(currentExp, expToNextLevel, currentLevel);
         }
+    }
 
-        if (expText != null)
+    public void ShowExpGain(float expAmount)
+    {
+        if (expBarUI != null)
         {
-            expText.text = $"{Mathf.CeilToInt(currentExp)} / {Mathf.CeilToInt(expToNextLevel)}";
-        }
-
-        if (levelText != null)
-        {
-            levelText.text = $"Level {currentLevel}";
+            expBarUI.ShowExpGain(expAmount);
         }
     }
 
@@ -227,7 +207,7 @@ public class UIManager : MonoBehaviour
 
         if (waveText != null)
         {
-            waveText.text = $"Wave {currentWave}";
+            waveText.text = $"Wave: {currentWave}";
         }
     }
 }
